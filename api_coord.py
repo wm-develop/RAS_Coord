@@ -14,11 +14,11 @@ from loguru import logger
 from config import *
 from CoordHandler import CoordHandler
 
-
 app = Flask(__name__)
 
 # Enable CORS for the entire app
 CORS(app)
+
 
 @app.route('/find_water_depth', methods=['post'])
 def find_water_depth():
@@ -26,9 +26,9 @@ def find_water_depth():
         x = request.json['longitude']
         y = request.json['latitude']
         # 检查是否为经纬度
-        if -90.0 <= float(y) <= 90.0:
+        if not (-90.0 <= float(y) <= 90.0):
             raise Exception
-        if -180 <= float(x) <= 180.0:
+        if not (-180 <= float(x) <= 180.0):
             raise Exception
         logger.info("JSON信息解析完成")
     except Exception as e:

@@ -5,4 +5,4 @@
 """
 存放常量路径
 """
-RESULT_PATH = ''  # 模拟结果的保存路径
+RESULT_PATH = './results'  # 模拟结果的保存路径
