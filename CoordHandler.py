@@ -9,36 +9,30 @@ from osgeo import ogr, osr
 
 class CoordHandler:
     def __init__(self, result_path):
+        self.source_srs = None
+        self.target_srs = None
         self.result_path = result_path
-        self.shapefile_path = os.path.join(self.result_path, 'demo2.shp')
-        self.output_csv = pd.read_csv(os.path.join(self.result_path, 'output.csv'))
+        self.shapefile_path = os.path.join(self.result_path, 'demo2/demo2.shp')
+        self.output_csv = pd.read_csv(os.path.join(self.result_path, 'output.csv'), header=None)
         self.geometries = []  # 存储几何对象和FID
-        self.transformer = self.read_shapefile()
+        self.fid_index = {}
 
     def read_shapefile(self):
         """
-        读取shp文件，进行坐标转换，提取所有features的GeometryRef和FID，记录在self.geometries中
+        读取shp文件，提取所有features的GeometryRef和FID，记录在self.geometries中
         :return:
         """
         ds = ogr.Open(self.shapefile_path)
         if ds is None:
-            return "无法打开shp文件"
+            raise RuntimeError("无法打开shp文件")
         layer = ds.GetLayer()
-
-        # 转换坐标
-        source_srs = osr.SpatialReference()
-        source_srs.ImportFromEPSG(4326)  # WGS 1984
-        target_srs = osr.SpatialReference()
-        target_srs.ImportFromEPSG(2436)  # Beijing_1954_3_Degree_GK_CM_117E
-        transformer = osr.CoordinateTransformation(source_srs, target_srs)
 
         # 提取FID
         for feature in layer:
             geom = feature.GetGeometryRef().Clone()
-            fid = feature.GetFID('FID')
+            fid = feature.GetFID()
             self.geometries.append((geom, fid))
-
-        return transformer
+            self.fid_index[fid] = len(self.geometries) - 1
 
     def check_finish(self):
         """
@@ -46,40 +40,21 @@ class CoordHandler:
         :return:
         """
         log_path = os.path.join(self.result_path, 'server.log')
-        try:
-            with open(log_path, 'r') as f:
-                last_line = ''
-                for line in f:
-                    last_line = line.rstrip('\n')
-                if not last_line:
-                    return False
-                # 检查最后一行是否包含该字符串
-                return '"POST /set_2d_hydrodynamic_data HTTP/1.1" 200 -' in last_line
-        except IOError as e:
-            return False
+        with open(log_path, 'r', encoding='utf-8') as file:
+            lines = file.readlines()
+        last_five = lines[-5:]  # 自动处理行数不足5行的情况
+        if not any("最大淹没面积shp文件已保存到" in line for line in last_five):
+            raise RuntimeError("上一次淹没模拟未正常完成")
 
-    def find_grid_id(self, x, y):
+    def find_grid_id(self, fid):
         """
-        根据坐标对在`max_water_area.shp`查找对应的网格，在其属性表中读取网格的编号fid并返回
-        :param x: x坐标，经度
-        :param y: y坐标，纬度
+        根据FID在`max_water_area.shp`查找对应的网格，在其属性表中读取网格的编号fid并返回
+        :param fid: 验证过的合法FID（整数）
         :return: 网格的编号fid
         """
-        # 创建点对象并转换坐标
-        point = ogr.Geometry(ogr.wkbPoint)
-        point.AddPoint(x, y)
-
-        try:
-            point.Transform(self.transformer)
-        except Exception as e:
-            return "坐标转换失败"
-
-        # 遍历所有几何体，查找对应的网格
-        for geom, fid in self.geometries:
-            if geom.Contains(point):
-                return fid
-
-        return None  # 未找到
+        if fid not in self.fid_index:
+            raise ValueError(f"编号为 {fid} 的网格未找到")
+        return fid
 
     def find_flooding(self, fid):
         """
@@ -91,8 +66,7 @@ class CoordHandler:
             # 获取对应fid的列数据
             series = self.output_csv[fid]
         except KeyError:
-            # 如果fid不存在，返回-1
-            return -1
+            raise KeyError("无法根据FID在output.csv中找到对应的列，请检查结果文件的完整性")
 
         # 遍历所有的时间步
         for i in range(1, len(series)):
@@ -103,7 +77,7 @@ class CoordHandler:
                 return i
 
         # 如果没找到符合条件的时间步，返回-1
-        return -1
+        raise RuntimeError("该FID对应的网格在整个模拟过程中一直被淹没或从未被淹没")
 
     def find_dam_water_depth(self, row_index):
         """
@@ -117,7 +91,7 @@ class CoordHandler:
         dam_fids = [17367, 25497, 24832]
         # 检查row_index是否合法
         if row_index >= len(self.output_csv) or row_index < 0:
-            return "时间步不合法"
+            raise AssertionError("时间步不合法")
 
         try:
             values = []
@@ -128,4 +102,4 @@ class CoordHandler:
             # 返回佛子岭、白莲崖、磨子潭水深组成的三元组
             return tuple(values)
         except KeyError as e:
-            return f"错误：FID {e} 不存在于结果文件中"
+            raise IndexError(f"FID {e} 不存在于结果文件中")

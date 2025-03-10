@@ -23,30 +23,75 @@ CORS(app)
 @app.route('/find_water_depth', methods=['post'])
 def find_water_depth():
     try:
-        x = request.json['longitude']
-        y = request.json['latitude']
-        # 检查是否为经纬度
-        if not (-90.0 <= float(y) <= 90.0):
-            raise Exception
-        if not (-180 <= float(x) <= 180.0):
-            raise Exception
-        logger.info("JSON信息解析完成")
+        fid = request.json['FID']
+        # 类型和数值验证
+        if isinstance(fid, int):
+            pass  # 直接进入范围判断
+        elif isinstance(fid, float):
+            # 允许整数形式的浮点数（如3.0）
+            if not fid.is_integer():
+                raise ValueError()
+            fid = int(fid)  # 转换为整数类型
+        else:
+            # 非数字或浮点非整数情况
+            raise ValueError()
+
+        # 范围验证
+        if not (0 <= fid <= 35807):
+            raise ValueError()
+
+        logger.info("网格编号读取成功")
+
+    except KeyError:
+        logger.error(KeyError)
+        return jsonify({"error": "请求JSON中没有FID字段"}), 400
+    except ValueError:
+        logger.error(ValueError)
+        return jsonify({"error": "FID必须为0-35807之间的整数"}), 400
     except Exception as e:
         logger.error(e)
-        return "Failed: JSON信息解析失败，请检查经纬度的格式后重试！"
+        return jsonify({"error": "请求格式不正确"}), 400
 
     try:
         coord_handler = CoordHandler(RESULT_PATH)
+        coord_handler.read_shapefile()
+        logger.info("网格shp文件读取成功")
+    except RuntimeError:
+        logger.error(RuntimeError)
+        return jsonify({"error": str(RuntimeError)}), 404
+
+    try:
         coord_handler.check_finish()
-        fid = coord_handler.find_grid_id(float(x), float(y))
+        logger.info("已完成文件完整性校验")
+    except RuntimeError as e:
+        logger.error(e)
+        return jsonify({"error": str(RuntimeError)}), 404
+
+    try:
         row_index = coord_handler.find_flooding(fid)
         values = coord_handler.find_dam_water_depth(row_index)
-        logger.info("坝下水位提取成功！")
-    except Exception as e:
-        logger.error(e)
-        return "Failed: 坝下水位提取过程中出现错误"
+        logger.info("坝下水位提取成功")
+    except KeyError as ke:
+        logger.error(ke)
+        return jsonify({"error": str(ke)}), 404
+    except RuntimeError as re:
+        logger.error(re)
+        return jsonify({"error": str(re)}), 404
+    except AssertionError as ae:
+        logger.error(ae)
+        return jsonify({"error": str(ae)}), 404
+    except IndexError as ie:
+        logger.error(ie)
+        return jsonify({"error": str(ie)}), 404
 
-    return values
+    return jsonify({
+        "status": "success",
+        "data": {
+            "fzl": values[0],
+            "bly": values[1],
+            "mzt": values[2]
+        }
+    })
 
 
 if __name__ == '__main__':
