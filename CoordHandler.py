@@ -4,7 +4,6 @@
 # @Software   : PyCharm
 import os
 import pandas as pd
-from osgeo import ogr, osr
 
 
 class CoordHandler:
@@ -12,27 +11,7 @@ class CoordHandler:
         self.source_srs = None
         self.target_srs = None
         self.result_path = result_path
-        self.shapefile_path = os.path.join(self.result_path, 'demo2/demo2.shp')
         self.output_csv = pd.read_csv(os.path.join(self.result_path, 'output.csv'), header=None)
-        self.geometries = []  # 存储几何对象和FID
-        self.fid_index = {}
-
-    def read_shapefile(self):
-        """
-        读取shp文件，提取所有features的GeometryRef和FID，记录在self.geometries中
-        :return:
-        """
-        ds = ogr.Open(self.shapefile_path)
-        if ds is None:
-            raise RuntimeError("无法打开shp文件")
-        layer = ds.GetLayer()
-
-        # 提取FID
-        for feature in layer:
-            geom = feature.GetGeometryRef().Clone()
-            fid = feature.GetFID()
-            self.geometries.append((geom, fid))
-            self.fid_index[fid] = len(self.geometries) - 1
 
     def check_finish(self):
         """
@@ -45,16 +24,6 @@ class CoordHandler:
         last_five = lines[-5:]  # 自动处理行数不足5行的情况
         if not any("最大淹没面积shp文件已保存到" in line for line in last_five):
             raise RuntimeError("上一次淹没模拟未正常完成")
-
-    def find_grid_id(self, fid):
-        """
-        根据FID在`max_water_area.shp`查找对应的网格，在其属性表中读取网格的编号fid并返回
-        :param fid: 验证过的合法FID（整数）
-        :return: 网格的编号fid
-        """
-        if fid not in self.fid_index:
-            raise ValueError(f"编号为 {fid} 的网格未找到")
-        return fid
 
     def find_flooding(self, fid):
         """

@@ -3,11 +3,10 @@
 # @Author  : wm
 # @Software   : PyCharm
 """
-在一次淹没模拟后，接收一个(x, y)坐标对
+在一次淹没模拟后，接收一个网格FID编号
 根据这个坐标对找到对应网格开始淹没的时刻
 然后找到对应时刻的佛子岭、磨子潭、白莲崖坝下水位返回
 """
-import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from loguru import logger
@@ -54,11 +53,10 @@ def find_water_depth():
 
     try:
         coord_handler = CoordHandler(RESULT_PATH)
-        coord_handler.read_shapefile()
-        logger.info("网格shp文件读取成功")
-    except RuntimeError:
-        logger.error(RuntimeError)
-        return jsonify({"error": str(RuntimeError)}), 404
+        logger.info("初始化成功")
+    except Exception as e:
+        logger.error(e)
+        return jsonify({"error": "读取output.csv出现错误"}), 404
 
     try:
         coord_handler.check_finish()
