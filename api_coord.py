@@ -56,7 +56,7 @@ def find_water_depth():
         logger.info("初始化成功")
     except Exception as e:
         logger.error(e)
-        return jsonify({"error": "读取output.csv出现错误"}), 404
+        return jsonify({"error": "读取csv过程中出现错误"}), 404
 
     try:
         coord_handler.check_finish()

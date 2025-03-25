@@ -8,10 +8,11 @@ import pandas as pd
 
 class CoordHandler:
     def __init__(self, result_path):
-        self.source_srs = None
-        self.target_srs = None
         self.result_path = result_path
         self.output_csv = pd.read_csv(os.path.join(self.result_path, 'output.csv'), header=None)
+        self.bailianya_csv = pd.read_csv(os.path.join(self.result_path, 'bailianya.csv'), header=None)
+        self.mozitan_csv = pd.read_csv(os.path.join(self.result_path, 'mozitan.csv'), header=None)
+        self.foziling_csv = pd.read_csv(os.path.join(self.result_path, 'foziling.csv'), header=None)
 
     def check_finish(self):
         """
@@ -50,25 +51,22 @@ class CoordHandler:
 
     def find_dam_water_depth(self, row_index):
         """
-        根据row_index查找3个坝下网格对应的水位值并返回
-        佛子岭：17367
-        白莲崖：25497
-        磨子潭：24832
+        根据row_index查找3个坝下网格对应的平均水位值并返回
+        bailianya_grids = [25495, 25494, 25496, 25492]
+        mozitan_grids = [24834, 24833, 24835, 24832]
+        foziling_grids = [24418, 24417, 17369, 17367]
         :param row_index: 淹没开始时刻对应的行索引值
         :return: 3个坝下网格对应的水位值
         """
-        dam_fids = [17367, 25497, 24832]
         # 检查row_index是否合法
         if row_index >= len(self.output_csv) or row_index < 0:
             raise AssertionError("时间步不合法")
 
         try:
-            values = []
-            for fid in dam_fids:
-                # 获取对应fid列的数据，然后取row_index行的值
-                value = self.output_csv[fid].iloc[row_index]
-                values.append(value)
-            # 返回佛子岭、白莲崖、磨子潭水深组成的三元组
-            return tuple(values)
+            bailianya_val = self.bailianya_csv.loc[row_index, 0]
+            mozitan_val = self.mozitan_csv.loc[row_index, 0]
+            foziling_val = self.foziling_csv.loc[row_index, 0]
+            # 返回佛子岭、白莲崖、磨子潭水位组成的三元组
+            return (bailianya_val, mozitan_val, foziling_val)
         except KeyError as e:
-            raise IndexError(f"FID {e} 不存在于结果文件中")
+            raise IndexError(f"FID {e.args[0]} 不存在于结果文件中")
